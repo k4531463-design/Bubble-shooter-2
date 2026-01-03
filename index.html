@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<title>Bubble Shooter</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body{
+  margin:0;
+  background:#020617;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+}
+#wrap{position:relative}
+#counter{
+  position:absolute;
+  top:8px;
+  left:50%;
+  transform:translateX(-50%);
+  color:#fff;
+  font-size:18px;
+  font-weight:bold;
+  font-family:Arial;
+  background:rgba(0,0,0,0.5);
+  padding:6px 12px;
+  border-radius:8px;
+}
+canvas{
+  background:#0f172a;
+  border:3px solid #38bdf8;
+}
+</style>
+</head>
+<body>
+
+<div id="wrap">
+  <div id="counter">Bubble fode: 0</div>
+  <canvas id="game" width="360" height="600"></canvas>
+</div>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const counter = document.getElementById("counter");
+
+const R = 15;
+const colors = ["red","yellow","green","blue","purple"];
+let bubbles = [];
+let shooter, nextColor = rand();
+let aim = null;
+let popped = 0; // 🔢 MAIN COUNT
+
+function rand(){
+  return colors[Math.floor(Math.random()*colors.length)];
+}
+
+function resetShooter(){
+  shooter = {
+    x: canvas.width/2,
+    y: canvas.height-35,
+    color: nextColor,
+    dx:0, dy:0,
+    shooting:false
+  };
+  nextColor = rand();
+}
+
+// initial bubbles
+for(let r=0;r<6;r++)
+ for(let c=0;c<10;c++)
+  bubbles.push({x:c*30+30,y:r*30+30,color:rand()});
+
+resetShooter();
+
+// aim events
+canvas.addEventListener("mousemove",e=>{
+  const r=canvas.getBoundingClientRect();
+  aim={x:e.clientX-r.left,y:e.clientY-r.top};
+});
+canvas.addEventListener("touchmove",e=>{
+  const r=canvas.getBoundingClientRect();
+  aim={x:e.touches[0].clientX-r.left,y:e.touches[0].clientY-r.top};
+});
+
+canvas.addEventListener("click",shoot);
+canvas.addEventListener("touchend",shoot);
+
+function shoot(){
+  if(shooter.shooting || !aim) return;
+  const a=Math.atan2(aim.y-shooter.y, aim.x-shooter.x);
+  shooter.dx=Math.cos(a)*6;
+  shooter.dy=Math.sin(a)*6;
+  shooter.shooting=true;
+}
+
+function drawBubble(b){
+  ctx.beginPath();
+  ctx.arc(b.x,b.y,R,0,Math.PI*2);
+  ctx.fillStyle=b.color;
+  ctx.fill();
+}
+
+function drawAim(){
+  if(!aim || shooter.shooting) return;
+  ctx.setLineDash([5,5]);
+  ctx.beginPath();
+  ctx.moveTo(shooter.x,shooter.y);
+  ctx.lineTo(aim.x,aim.y);
+  ctx.strokeStyle="white";
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+// connected same color
+function connected(start){
+  let stack=[start], group=[start];
+  for(let i=0;i<stack.length;i++){
+    for(let b of bubbles){
+      if(
+        b.color===start.color &&
+        !group.includes(b) &&
+        Math.hypot(b.x-stack[i].x,b.y-stack[i].y) < R*2.2
+      ){
+        group.push(b);
+        stack.push(b);
+      }
+    }
+  }
+  return group;
+}
+
+function attach(){
+  const nb={x:shooter.x,y:shooter.y,color:shooter.color};
+  bubbles.push(nb);
+
+  const g = connected(nb);
+  if(g.length >= 3){
+    popped += g.length;                 // ✅ COUNT बढ़ेगा
+    counter.innerText = "Bubble fode: " + popped;
+    bubbles = bubbles.filter(b=>!g.includes(b));
+  }
+  resetShooter();
+}
+
+function update(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  bubbles.forEach(drawBubble);
+  drawBubble(shooter);
+
+  // NEXT bubble (clear bottom-right)
+  drawBubble({x:canvas.width-30,y:canvas.height-30,color:nextColor});
+
+  drawAim();
+
+  if(shooter.shooting){
+    shooter.x+=shooter.dx;
+    shooter.y+=shooter.dy;
+
+    if(shooter.x<R || shooter.x>canvas.width-R) shooter.dx*=-1;
+
+    let hit=false;
+    for(let b of bubbles){
+      if(Math.hypot(b.x-shooter.x,b.y-shooter.y)<R*2){
+        hit=true; attach(); break;
+      }
+    }
+    if(shooter.y<R && !hit) attach();
+  }
+
+  requestAnimationFrame(update);
+}
+update();
+</script>
+</body>
+</html>
